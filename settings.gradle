@@ -1,6 +1,9 @@
-rootProject.name = 'synechron-monolith-to-micro-services-migration'
+rootProject.name = 'micro-services'
 
-include 'monolith'
-/*include 'catalogue-service', 'unsorted'*/
-include 'inventory-service', 'order-service', 'hystrix-dashboard'
-include 'service-registry', 'config-server','api-gateway','actuator'
+//include 'monolith'
+include 'service-registry'
+include 'config-server'
+include 'inventory-service'
+include 'order-service'
+
+

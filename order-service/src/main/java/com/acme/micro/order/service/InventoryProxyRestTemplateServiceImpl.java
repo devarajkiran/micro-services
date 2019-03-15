@@ -23,58 +23,59 @@ import static org.springframework.http.HttpMethod.POST;
 
 @Service
 public class InventoryProxyRestTemplateServiceImpl implements InventoryProxyRestTemplateService {
-  @LoadBalanced //restTemplate will take of load balancing
-  private final RestTemplate restTemplate;
-  private final DiscoveryClient discoveryClient;
-  private final InventoryLeaseCancellationClient leaseCancellationClient;
-  private final LoadBalancerClient loadBalancerClient;
+    @LoadBalanced //restTemplate will take of load balancing
+    private final RestTemplate restTemplate;
+    private final DiscoveryClient discoveryClient;
+    private final InventoryLeaseCancellationClient leaseCancellationClient;
+    private final LoadBalancerClient loadBalancerClient;
 
-  public InventoryProxyRestTemplateServiceImpl(RestTemplate restTemplate, DiscoveryClient discoveryClient, InventoryLeaseCancellationClient leaseCancellationClient, LoadBalancerClient loadBalancerClient) {
-    this.restTemplate = restTemplate;
-    this.discoveryClient = discoveryClient;
-    this.leaseCancellationClient = leaseCancellationClient;
-    this.loadBalancerClient = loadBalancerClient;
-  }
+    public InventoryProxyRestTemplateServiceImpl(RestTemplate restTemplate, DiscoveryClient discoveryClient, InventoryLeaseCancellationClient leaseCancellationClient, LoadBalancerClient loadBalancerClient) {
+        this.restTemplate = restTemplate;
+        this.discoveryClient = discoveryClient;
+        this.leaseCancellationClient = leaseCancellationClient;
+        this.loadBalancerClient = loadBalancerClient;
+    }
 
-  @Override
-  @HystrixCommand(fallbackMethod = "fallbackForErroringExpiringLeaseForOrder")
-  public ExpiringInventoryLeaseResponse getExpiringLeaseForOrder(int orderId,
-      String productCode, int quantity) {
-    ExpiringInventoryLeaseRequest request =
-        ExpiringInventoryLeaseRequest.builder().orderId(orderId).productCode(productCode)
-            .quantity(quantity).build();
-    URI uri = UriComponentsBuilder.fromHttpUrl("http://inventory-service/acquireExpiringLease").build().toUri();
-    RequestEntity<ExpiringInventoryLeaseRequest> requestEntity = new RequestEntity<>(request, POST, uri);
-    return restTemplate.exchange(requestEntity, new ParameterizedTypeReference<ExpiringInventoryLeaseResponse>() {}).getBody();
-  }
+    @Override
+    @HystrixCommand(fallbackMethod = "fallbackForErroringExpiringLeaseForOrder")
+    public ExpiringInventoryLeaseResponse getExpiringLeaseForOrder(int orderId, String productCode, int quantity) {
+        ExpiringInventoryLeaseRequest request =
+                ExpiringInventoryLeaseRequest.builder().orderId(orderId).productCode(productCode)
+                        .quantity(quantity).build();
+        URI uri = UriComponentsBuilder.fromHttpUrl("http://inventory-service/acquireExpiringLease").build().toUri();
+        RequestEntity<ExpiringInventoryLeaseRequest> requestEntity = new RequestEntity<>(request, POST, uri);
+        return restTemplate.exchange(requestEntity, new ParameterizedTypeReference<ExpiringInventoryLeaseResponse>() {
+        }).getBody();
+    }
 
-  // Since we want to mark tx as cancelled, lets just do that
-  public ExpiringInventoryLeaseResponse fallbackForErroringExpiringLeaseForOrder(int orderId, String productCode, int quantity, Throwable e) {
-    return ExpiringInventoryLeaseResponse.builder().leaseAcquired(false).build();
-  }
+    // Since we want to mark tx as cancelled, lets just do that
+    public ExpiringInventoryLeaseResponse fallbackForErroringExpiringLeaseForOrder(int orderId, String productCode, int quantity, Throwable e) {
+        return ExpiringInventoryLeaseResponse.builder().leaseAcquired(false).build();
+    }
 
-  @Override
-  public boolean confirmAcquire(int leaseId) {
-    List<ServiceInstance> instances = discoveryClient.getInstances("inventory-service");
+    @Override
+    public boolean confirmAcquire(int leaseId) {
+        List<ServiceInstance> instances = discoveryClient.getInstances("inventory-service");
 //    loadBalancerClient.execute("inventory-service", new LoadBalancerRequest<IdContainer>() {
 //      @Override
 //      public IdContainer apply(ServiceInstance instance) throws Exception {
 //        return instance.;
 //      }
 //    })
-    if (instances.size() > 0) {
-      ServiceInstance serviceInstance = instances.get(0);
-      URI uri = UriComponentsBuilder.fromUri(serviceInstance.getUri()).path("confirmAcquire").build().toUri();
-      RestTemplate restTemplate = new RestTemplate();
-      IdContainer idContainer = IdContainer.builder().id(leaseId).build();
-      RequestEntity<IdContainer> requestEntity = new RequestEntity<>(idContainer, POST, uri);
-      return Objects.requireNonNull(restTemplate.exchange(requestEntity, new ParameterizedTypeReference<InventoryAcquireConfirmationResponse>() {}).getBody()).isAcquired();
+        if (instances.size() > 0) {
+            ServiceInstance serviceInstance = instances.get(0);
+            URI uri = UriComponentsBuilder.fromUri(serviceInstance.getUri()).path("confirmAcquire").build().toUri();
+            RestTemplate restTemplate = new RestTemplate();
+            IdContainer idContainer = IdContainer.builder().id(leaseId).build();
+            RequestEntity<IdContainer> requestEntity = new RequestEntity<>(idContainer, POST, uri);
+            return Objects.requireNonNull(restTemplate.exchange(requestEntity, new ParameterizedTypeReference<InventoryAcquireConfirmationResponse>() {
+            }).getBody()).isAcquired();
+        }
+        return false;
     }
-    return false;
-  }
 
-  @Override
-  public boolean cancelLease(int leaseId) {
-    return leaseCancellationClient.cancel(leaseId).isCancelled();
-  }
+    @Override
+    public boolean cancelLease(int leaseId) {
+        return leaseCancellationClient.cancel(leaseId).isCancelled();
+    }
 }

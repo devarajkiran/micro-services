@@ -52,6 +52,10 @@ subprojects {
     // NOTE: Due to a bug as of now mapstruct needs to go before lombok
     // https://github.com/mapstruct/mapstruct/issues/1581
 
+    //swagger
+    implementation 'io.springfox:springfox-swagger2:2.9.2'
+    implementation 'io.springfox:springfox-swagger-ui:2.9.2'
+    
     // maspstruct
     implementation "org.mapstruct:mapstruct:${project.'mapstruct.version'}"
     implementation "org.mapstruct:mapstruct:${project.'mapstruct.version'}"
